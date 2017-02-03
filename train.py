@@ -24,9 +24,14 @@ def main():
     parser.add_argument('--batchsize', '-b', type=int, default=100, help='Number of images in each mini-batch')
     parser.add_argument('--epoch', '-e', type=int, default=20, help='Number of sweeps over the dataset to train')
     parser.add_argument('--out', '-o', default='result', help='Directory to output the result')
+    parser.add_argument('--gpu', '-g', type=int, default=-1, help='GPU to use')
     args = parser.parse_args()
 
     model = L.Classifier(models[args.model]())
+
+    if args.gpu >= 0:
+        chainer.cuda.get_device(args.gpu).use()
+        model.to_gpu()
 
     optimizer = chainer.optimizers.Adam()
     optimizer.setup(model)
@@ -36,10 +41,10 @@ def main():
     train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
     test_iter = chainer.iterators.SerialIterator(test, args.batchsize, repeat=False, shuffle=False)
 
-    updater = training.StandardUpdater(train_iter, optimizer)
+    updater = training.StandardUpdater(train_iter, optimizer, device=args.gpu)
     trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.out)
 
-    trainer.extend(extensions.Evaluator(test_iter, model))
+    trainer.extend(extensions.Evaluator(test_iter, model, device=args.gpu))
     trainer.extend(extensions.dump_graph('main/loss'))
     trainer.extend(extensions.snapshot(), trigger=(args.epoch, 'epoch'))
     trainer.extend(extensions.LogReport())
